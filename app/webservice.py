@@ -21,6 +21,8 @@ app = FastAPI(
 
 add_streaming_routes(app)
 
+
+
 # cors headers for cross domain access
 app.add_middleware(
 	CORSMiddleware,

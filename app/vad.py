@@ -50,7 +50,7 @@ class VadDetector():
 		if (self.have_voice > VAD_MIN_VOICE_PACKETS and (now - self.last_voice > VAD_TIMEOUT)):
 			self.last_voice = time.time()
 			self.have_voice = 0
-			# print(f"VAD:TRIGGER")
+			print(f"VAD:TRIGGER")
 			asyncio.create_task(self.callback())
 			return True
 		return False

@@ -17,15 +17,19 @@ services:
       - PYTHONUNBUFFERED=1
       - SSL_DOMAIN_NAME=${SSL_DOMAIN_NAME}
       - SSL_EMAIL=${SSL_EMAIL}
-      - ASR_MODEL=base
+      - ASR_MODEL=medium.en
+      #- ASR_MODEL=base
       - OPENAI_WHISPER_API_KEY=${OPENAI_WHISPER_API_KEY}
+      #- LD_LIBRARY_PATH=/usr/local/lib/python3.10/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.10/site-packages/nvidia/cudnn/lib
     restart: unless-stopped
     ports:
-      - "443:443"
-      - "80:80" # certbot
+      - "444:444"
+      #- "80:80" # certbot ssl gen
     volumes:
-      - ./app:/app/whisper-websocket-streamer
+      #- ./app:/app/app
       - /home/stever/projects/cache/whisper:/root/.cache/whisper
-      - /home/stever/projects/cache/letsencrypt:/etc/letsencrypt/
-    entrypoint:  /app/whisper-websocket-streamer/generate_ssl.sh
-    command: /app/.venv/bin/python -m gunicorn --bind 0.0.0.0:443  --workers 1 --reload --timeout 0 --keyfile /etc/letsencrypt/live/${SSL_DOMAIN_NAME}/privkey.pem --certfile /etc/letsencrypt/live/${SSL_DOMAIN_NAME}/cert.pem app.webservice:app -k uvicorn.workers.UvicornWorker
+      - /etc/letsencrypt:/etc/letsencrypt # to traverse symbolic links inside docker, paths MUST match
+      - /home/stever/projects/whisper-websocket-streaming:/app
+    #entrypoint:  /app/whisper-websocket-streamer/generate_ssl.sh
+    #command: /app/.venv/bin/python -m gunicorn --bind 0.0.0.0:444  --workers 1 --reload --timeout 0 --keyfile /etc/letsencrypt/live/${SSL_DOMAIN_NAME}/privkey.pem --certfile /etc/letsencrypt/live/${SSL_DOMAIN_NAME}/cert.pem app.webservice:app -k uvicorn.workers.UvicornWorker
+    entrypoint: python -m gunicorn --bind 0.0.0.0:444  --workers 1 --reload --timeout 0 --keyfile /etc/letsencrypt/live/${SSL_DOMAIN_NAME}/privkey.pem --certfile /etc/letsencrypt/live/${SSL_DOMAIN_NAME}/cert.pem app.webservice:app -k uvicorn.workers.UvicornWorker

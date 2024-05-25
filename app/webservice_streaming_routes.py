@@ -17,7 +17,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, JSONResponse
 from multiprocessing import Process
 import concurrent.futures
 import multiprocessing
-
+# from profile import profile 
 from whisper import tokenizer
 from typing import Optional
 
@@ -43,7 +43,7 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse
 
-print('WHISPER KEY',os.environ.get('OPENAI_WHISPER_API_KEY',''))
+print('WHISPE1R KEY',os.environ.get('OPENAI_WHISPER_API_KEY',''))
 
 if os.environ.get('OPENAI_WHISPER_API_KEY',''):
 	from openai import OpenAI
@@ -52,10 +52,35 @@ if os.environ.get('OPENAI_WHISPER_API_KEY',''):
 
 def add_streaming_routes(app):
 	
+	
+	# @app.post("/asr", tags=["Endpoints"])
+	# async def asr(
+			# audio_file: UploadFile = File(...),
+			# encode: bool = Query(default=True, description="Encode audio first through ffmpeg"),
+			# task: Union[str, None] = Query(default="transcribe", enum=["transcribe", "translate"]),
+			# language: Union[str, None] = Query(default=None, enum=LANGUAGE_CODES),
+			# initial_prompt: Union[str, None] = Query(default=None),
+			# vad_filter: Annotated[bool | None, Query(
+					# description="Enable the voice activity detection (VAD) to filter out parts of the audio without speech",
+					# include_in_schema=(True if ASR_ENGINE == "faster_whisper" else False)
+				# )] = False,
+			# word_timestamps: bool = Query(default=False, description="Word level timestamps"),
+			# output: Union[str, None] = Query(default="txt", enum=["txt", "vtt", "srt", "tsv", "json"])
+	# ):
+		# result = transcribe(load_audio(audio_file.file, encode), task, language, initial_prompt, vad_filter, word_timestamps, output)
+		# return StreamingResponse(
+		# result,
+		# media_type="text/plain",
+		# headers={
+			# 'Asr-Engine': ASR_ENGINE,
+			# 'Content-Disposition': f'attachment; filename="{quote(audio_file.filename)}.{output}"'
+		# }
+	# )
+	
 	# STT
 	@app.websocket("/stt")
 	async def websocket_endpoint(websocket: WebSocket, clientId: Optional[int] = None):
-		
+		print("AAAddff local transcribe ")
 		try:
 			audio_buffer = asyncio.Queue()
 			
@@ -80,6 +105,7 @@ def add_streaming_routes(app):
 					print(e)
 			
 			async def transcribe_buffer(audio_buffer):	
+				print("TTT local transcribe ")
 				s = time.time()
 				with tempfile.NamedTemporaryFile(suffix=".wav") as output_file:
 					print(output_file)
@@ -92,12 +118,15 @@ def add_streaming_routes(app):
 							await websocket_send_json({"transcription": transcription})
 							print("api transcript",transcription)
 					else:
+						print("local transcribe ")
 						o = transcribe(load_audio(io.FileIO(output_file.name), False), 'transcribe', "en", "", False, True, "json")	
+						print("local transcribe ",o)
 						t = json.loads(o.read()).get('text')
 						n = time.time() - s
-						#print(f"transcript in %s" % n,t)
+						print(f"transcript in %s" % n,t)
 						if t:
 							await websocket_send_json({"transcription": t})
+					del audio_buffer
 					audio_buffer = asyncio.Queue()
 					
 			await websocket.accept()
@@ -106,8 +135,11 @@ def add_streaming_routes(app):
 			while True:
 				# loop until None message or timeout then reset audio buffer and vad
 				while True:
+					print("MSG start loop")
 					try:
-						msg = await asyncio.wait_for(websocket.receive(), timeout=3)
+						print("preMSG")
+						msg = await asyncio.wait_for(websocket.receive(), timeout=10)
+						print("MSG")
 						await asyncio.sleep(0)  # Yield to event loop for timeout handling
 						# null message from client triggers transcript
 						if msg is None:
@@ -116,24 +148,38 @@ def add_streaming_routes(app):
 							break
 						data_bytes = msg.get('bytes')
 						if data_bytes is None:
-							print("MSG bytes NONE")
+							print("MSG bytes NONE", )
 							await transcribe_buffer(audio_buffer)
 							break
 						print(data_bytes[0:10])
-						sf = soundfile.SoundFile(io.BytesIO(data_bytes), channels=1,endian="LITTLE",samplerate=SAMPLING_RATE, subtype="PCM_16",format="RAW")
+						sf = soundfile.SoundFile(io.BytesIO(data_bytes), channels=1,endian="LITTLE",samplerate=SAMPLING_RATE, subtype="FLOAT",format="RAW")
 						audio, _ = librosa.load(sf,sr=SAMPLING_RATE,dtype=np.float32)
+						print("MSG NONE sf",sf)
 						await audio_buffer.put(audio)
+						print("MSG put audio")
 						await vad.feed(data_bytes)
-					except asyncio.TimeoutError:
+						print("MSG fed audio")
+						# del sf
+						# del audio
+						# del data_bytes
+					except asyncio.TimeoutError as e:
+						print("TIMEOUT ERR",e)
 						break
-					except RuntimeError:
+					except RuntimeError as e:
+						print("RUNN ERR",e)
 						break;
+				print("ALL DONE inner" )
 				# reset buffers when loop breaks after None message
+				del audio_buffer
 				audio_buffer = asyncio.Queue()
+				del vad
 				vad = VadDetector(vad_callback)
-				
+			print("ALL DONE outer")	
 			
 		except WebSocketDisconnect:
+			print("DISCONNECT")	
+			del audio_buffer
+			del vad
 			print('CLOSE WS CONNECT CLIENT')
 			pass
 			
