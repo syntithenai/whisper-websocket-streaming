@@ -4,6 +4,7 @@ import soundfile as sf
 from typing import BinaryIO, Union, Annotated
 import numpy as np
 from constants import SAMPLING_RATE, CHANNELS, BLOCKSIZE
+import ffmpeg
 
 async def write_queue_to_audio_file(thefile: BinaryIO,queue, overwrite = False):
     # load file for appending
@@ -44,19 +45,19 @@ def load_audio(file: BinaryIO, encode=False, sr: int = SAMPLING_RATE):
     -------
     A NumPy array containing the audio waveform, in float32 dtype.
     """
-    if encode:
-        try:
-            # This launches a subprocess to decode audio while down-mixing and resampling as necessary.
-            # Requires the ffmpeg CLI and `ffmpeg-python` package to be installed.
-            out, _ = (
-                ffmpeg.input("pipe:", threads=0)
-                .output("-", format="s16le", acodec="pcm_s16le", ac=1, ar=sr)
-                .run(cmd="/usr/bin/ffmpeg", capture_stdout=True, capture_stderr=True, input=file.read())
-            )
-        except ffmpeg.Error as e:
-            raise RuntimeError(f"Failed to load audio: {e.stderr.decode()}") from e
-    else:
-        out = file.read()
+    # if encode:
+        # try:
+            # # This launches a subprocess to decode audio while down-mixing and resampling as necessary.
+            # # Requires the ffmpeg CLI and `ffmpeg-python` package to be installed.
+            # out, _ = (
+                # ffmpeg.input("pipe:", threads=0)
+                # .output("-", format="s16le", acodec="pcm_s16le", ac=1, ar=sr)
+                # .run(cmd="/usr/bin/ffmpeg", capture_stdout=True, capture_stderr=True, input=file.read())
+            # )
+        # except ffmpeg.Error as e:
+            # raise RuntimeError(f"Failed to load audio: {e.stderr.decode()}") from e
+    # else:
+    out = file.read()
 
     return np.frombuffer(out, np.int16).flatten().astype(np.float32) / 32768.0
 
